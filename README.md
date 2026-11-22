@@ -5,7 +5,7 @@ A hands-on challenge featuring 20 independent AI agent projects, progressing fro
 ## Project Roadmap
 
 - [x] **Agent 01:** Calculator Agent
-- [ ] **Agent 02:** Multi-Tool Agent
+- [x] **Agent 02:** Multi-Tool Agent
 - [ ] **Agent 03:** Structured Output Agent
 - [ ] **Agent 04:** Error Handling & Retry Agent
 - [ ] **Agent 05:** ReAct Agent
