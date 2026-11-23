@@ -28,6 +28,8 @@ llm_with_structured_output = llm.with_structured_output(APIReturn)
 
 class AgentState(TypedDict):
     messages:Annotated[list[AnyMessage], add_messages]
+    retries: int = 0
+    max_retries: int = 3
 
 def get_api_response(state:AgentState) -> AgentState:
     """ Get a structured analysis of a tender docuement. """
@@ -36,6 +38,23 @@ def get_api_response(state:AgentState) -> AgentState:
 
 
 def conditionally_call_api(state:AgentState) -> AgentState:
-    """  """
+    """ catch the response from the LLM and call the API if the status code is 200. """
+    
+    try:
+        last_message = state["messages"][-1]
+        if isinstance(last_message, AIMessage):
+            api_response = last_message.content
+            if api_response.status_code == 200:
+                # Call the API with the response body
+                # Here you would implement the actual API call using a library like requests
+                state["retries"] = 0
+                return "end"  # Indicate that the process is complete
+            else:
+                raise ValueError(f"API call failed with status code: {api_response.status_code}")
+    except ValueError as e:
+        state["retries"] += 1
+        if state["retries"] == state["max_retries"]:
+            return "max_retries_reached"  # Indicate that the maximum number of retries has been reached
+        return "retrie"
 
 
