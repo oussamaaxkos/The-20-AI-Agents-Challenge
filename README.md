@@ -6,7 +6,7 @@ A hands-on challenge featuring 20 independent AI agent projects, progressing fro
 
 - [x] **Agent 01:** Calculator Agent
 - [x] **Agent 02:** Multi-Tool Agent
-- [ ] **Agent 03:** Structured Output Agent
+- [x] **Agent 03:** Structured Output Agent
 - [ ] **Agent 04:** Error Handling & Retry Agent
 - [ ] **Agent 05:** ReAct Agent
 - [ ] **Agent 06:** Planning & Task Decomposition Agent
