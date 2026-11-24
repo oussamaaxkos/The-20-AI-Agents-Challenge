@@ -106,7 +106,6 @@ response = app.invoke(
     config=config
 )
 
-print("LLM Answer:", response["messages"][-1].content)
 
 
 
