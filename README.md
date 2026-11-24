@@ -8,7 +8,7 @@ A hands-on challenge featuring 20 independent AI agent projects, progressing fro
 - [x] **Agent 02:** Multi-Tool Agent
 - [x] **Agent 03:** Structured Output Agent
 - [x] **Agent 04:** Error Handling & Retry Agent
-- [ ] **Agent 05:** ReAct Agent
+- [x] **Agent 05:** ReAct Agent
 - [ ] **Agent 06:** Planning & Task Decomposition Agent
 - [ ] **Agent 07:** Reflection & Self-Correction Agent
 - [ ] **Agent 08:** Memory-Enabled Agent
