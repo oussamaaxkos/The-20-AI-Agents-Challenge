@@ -108,14 +108,11 @@ def executor_node(state : AgentState) -> dict:
 
     past_context = "\n".join([f"- {step}:{res}" for step, res in state["past_steps"]])
 
-    task_prompt = f"""
-      Objective : {state['objective']}
-      completed steps so far:
-      {past_context if past_context else "None"}
+    task_prompt = f"""Completed facts so far:
+    {past_context if past_context else "None"}
 
-      Your current task (execute ONLY this step):
-      {current_step}
-    """
+    Execute ONLY this single instruction and nothing else:
+    {current_step}"""
 
     result = step_executor_agent.invoke({"messages": [HumanMessage(content=task_prompt)]})
     step_output = result["messages"][-1].content
