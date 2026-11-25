@@ -62,7 +62,10 @@ class AgentState(TypedDict):
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
-from langgraph.agents import create_agent
+from langchain.agents import create_agent
+from dotenv import load_dotenv
+
+load_dotenv()
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash"
@@ -87,7 +90,7 @@ def calculate_percentage_difference(val1:float, val2:float) -> float:
 
 tools = [lookup_country_budget, calculate_percentage_difference]
 
-step_executor_agent = create_agent(llm=llm,tools=tools)
+step_executor_agent = create_agent(model=llm,tools=tools)
 
 planner_llm = llm.with_structured_output(Plan)
 
@@ -101,7 +104,7 @@ def planner_node(state:AgentState) -> dict:
     return {"plan": plan_result.steps}
 
 def executor_node(state : AgentState) -> dict:
-    current_step = state["Plan"][0]
+    current_step = state["plan"][0]
 
     past_context = "\n".join([f"- {step}:{res}" for step, res in state["past_steps"]])
 
@@ -119,7 +122,7 @@ def executor_node(state : AgentState) -> dict:
 
     return {"past_steps": [(current_step, step_output)]}
 
-replanner_llm = llm.with_stuctured_output(Act)
+replanner_llm = llm.with_structured_output(Act)
 
 def replanner_node(state:AgentState) -> dict:
     past_context = "\n".join([f"- {step}:{res}" for step, res in state["past_steps"]])
@@ -138,7 +141,7 @@ def replanner_node(state:AgentState) -> dict:
     if isinstance(output.action, Response):
         return {"final_response":output.action.response}
     else:
-        return {"plan":output.ection.steps}
+        return {"plan":output.action.steps}
     
 
 from langgraph.graph import StateGraph, START, END
@@ -166,10 +169,28 @@ builder.add_conditional_edges(
 )
 
 app = builder.compile()
-result = app.invoke({
+inputs = {
     "objective": "Compare the 2026 digital transformation budget of Morocco with Tunisia's, and calculate the percentage difference.",
     "plan": [],
     "past_steps": [],
     "final_response": None
-})
-print("Final Answer:\n", result["final_response"])
+}
+
+for event in app.stream(inputs, stream_mode="updates"):
+    for node_name, output in event.items():
+        print(f"\n{'='*50}")
+        print(f"NODE: {node_name.upper()}")
+        print(f"{'='*50}")
+
+        if "plan" in output:
+            print("Updated Plan:")
+            for i, step in enumerate(output["plan"], 1):
+                print(f"  {i}. {step}")
+
+        if "past_steps" in output:
+            step, res = output["past_steps"][-1]
+            print(f"Completed Step: {step}")
+            print(f"Result: {res}")
+
+        if "final_response" in output and output["final_response"]:
+            print(f"\nFINAL ANSWER:\n{output['final_response']}")
