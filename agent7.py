@@ -38,8 +38,8 @@ class AgentState(TypedDict):
      max_critic : int
 
 
-class IsCritic():
-     is_critic : bool = Field(description = "Is this answer write compared with    this query")
+class IsCritic(BaseModel):
+     is_critic : bool = Field(description = "Is this answer write compared with this query")
 
 
 @tool
