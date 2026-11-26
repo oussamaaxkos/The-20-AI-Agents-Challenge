@@ -83,8 +83,26 @@ def CriticNode(state:AgentState):
 def condtional_edge(state:AgentState):
     if state["max_critic"] == -1:
         return "end"
-    return "critic" if state["is_critic"] else "end"
+    return "generator" if state["is_critic"] else "end"
 
+
+builder = StateGraph(AgentState)
+app = builder.compile()
+
+app.add_node("generator", GenertorNode)
+app.add_node("critic", CriticNode)
+
+app.add_edge(START, "generator")
+app.add_edge("generator", "critic")
+
+app.add_conditional_edges(
+    "critic",
+    condtional_edge,
+    {
+        "generator": "generator",
+        "end": END
+    }
+)
 
 
 
