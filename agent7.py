@@ -25,10 +25,34 @@ from langchain.graph.message import add_messages
 from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
-import math
+from langchain_core.tools import tool
+
 
 load_dotenv()
 
+
+
+class AgentState(TypedDict):
+     messages : Annotated[list[AnyMessage], add_messages]
+     is_critic : bool
+     max_critic : int
+
+
+class IsCritic():
+     is_critic : bool = Field(description = "Is this answer write compared with    this query")
+
+
+@tool
+def information_retrieval(query:str):
+    chunks = ["a","b","c"]
+    return chunks
+
+
+
+
+
+
+     
     
 
 

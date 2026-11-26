@@ -25,8 +25,17 @@ from langchain.graph.message import add_messages
 from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
-import math
 
+
+load_dotenv()
+
+class AgentState(BaseModel):
+     messages : Annotated[list[AnyMessage], add_messages]
+     is_critic : bool
+     max_critic : int
+
+
+     
     
 
 
