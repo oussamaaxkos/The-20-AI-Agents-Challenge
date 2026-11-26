@@ -1,123 +1,139 @@
-# 07: Reflection agent and Self-Correction Agent introduces
-# an iteraive quality-control loop where an LLM generates a draft
-# critiques its own work against specific rules
-# and revises the output until it passes or hits a maximum retry limit.
-
-# why Agnet 07 Exists (Singke-Pass vs Self-Critique)
-# In earlier agents, once the LLM produces a final answer
-# that text goes straight to the user
-# even if it missed a constraint, hallucinated an edge case, or produced a buggy code.
-
-# Agent 07 separates Generation from critique
-# how a developer writes code, runs a code review, fixes bugs, and re-tests
-# before shipping.
-
-# Graph Topology (Generator-Critic Loop)
-# Start -> Generator Node -> Critic NODE (Evaluates draft against strict rules) (Outputs structured Critique (Pydatntic)) -> GENERATOR NODE (Rewrites draft based on Critique) -> Critic Node (Evaluates new draft) -> Generator Node (Rewrites again) -> ... -> END
-# [passed == True OR max_revisions] -> END
-
-from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import ToolNode
 from typing import TypedDict, Annotated
-from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
-from langchain.graph.message import add_messages
-from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemMessage
-from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import AnyMessage, HumanMessage
 from langchain_core.tools import tool
 from langchain.agents import create_agent
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from langgraph.checkpoint.memory import MemorySaver
 
 load_dotenv()
 
-llm = ChatGoogleGenerativeAI(
-    model = "gemini-2.5-flash",
-)
-
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 
 
 class AgentState(TypedDict):
-     messages : Annotated[list[AnyMessage], add_messages]
-     query : str
-     is_critic : bool
-     max_critic : int
+    messages: Annotated[list[AnyMessage], add_messages]
+    query: str
+    draft: str
+    needs_revision: bool
+    max_critic: int
 
 
-class IsCritic(BaseModel):
-     is_critic : bool = Field(description = "Is this answer write compared with this query")
+class CritiqueResult(BaseModel):
+    needs_revision: bool = Field(
+        description="True if the answer is incomplete, inaccurate, or misses part of the query; False if it is fully accurate."
+    )
+    feedback: str = Field(
+        description="Specific instructions on what to fix or retrieve next, or 'Approved' if needs_revision is False."
+    )
 
-class CreateStructuredQuery(BaseModel):
-     query : str = Field(description = "use this query and generate a structured one.")
 
-is_critic_point_llm = llm.with_structured_output(IsCritic)
-structured_query = llm.with_structured_output(CreateStructuredQuery)
+class RewrittenQuery(BaseModel):
+    query: str = Field(
+        description="An improved, targeted search/generation query incorporating the critic's feedback."
+    )
 
 
+critic_llm = llm.with_structured_output(CritiqueResult)
+query_rewriter_llm = llm.with_structured_output(RewrittenQuery)
 
 
 @tool
-def information_retrieval(query:str):
-    chunks = ["a","b","c"]
+def information_retrieval(query: str) -> list[str]:
+    """Retrieve relevant knowledge chunks for a given query."""
+    chunks = [
+        "Chunk A: Morocco's 2026 digital strategy allocates $450M to AI and cloud infrastructure.",
+        "Chunk B: Tunisia's 2026 digital plan focuses on startup ecosystems with a $300M budget.",
+        "Chunk C: Regional fiber-optic connectivity between North Africa and Europe expanded by 35%.",
+    ]
     return chunks
 
 
 tools = [information_retrieval]
-
-
 step_executor_agent = create_agent(model=llm, tools=tools)
 
-def GenertorNode(state:AgentState):
-    if state['is_critic'] :
-        state["query"] = structured_query.invoke(f"Here is the context reponse and critics points:{state['messages']} update query based on crtic point")
-    response = step_executor_agent.invoke(state["query"])
-    return {"messages":response}
 
-def CriticNode(state:AgentState):
-    is_critic = is_critic_point_llm.invoke(f"query : {state['query']}, response : {state['messages'][-1]}")
-    critic_point = None
-    if is_critic :
-        critic_point = llm.invoke(f"here is the query {state['query']} and here is the answer {state['messages']} what is the critic point")
-        state["max_critic"] -= 1
-    return {"messages":critic_point, "is_critic":is_critic}
+def generator_node(state: AgentState) -> dict:
+    current_query = state["query"]
 
-def condtional_edge(state:AgentState):
-    if state["max_critic"] == -1:
+    if state.get("needs_revision"):
+        rewritten: RewrittenQuery = query_rewriter_llm.invoke(
+            f"Original query: {current_query}\n"
+            f"Previous draft: {state['draft']}\n"
+            f"Critic feedback: {state['messages'][-1].content}\n"
+            f"Rewrite the query to resolve the critic's feedback."
+        )
+        current_query = rewritten.query
+
+    result = step_executor_agent.invoke({"messages": [HumanMessage(content=current_query)]})
+    latest_answer = result["messages"][-1]
+
+    return {
+        "query": current_query,
+        "draft": latest_answer.content,
+        "messages": [latest_answer],
+    }
+
+
+def critic_node(state: AgentState) -> dict:
+    evaluation: CritiqueResult = critic_llm.invoke(
+        f"User Query: {state['query']}\n"
+        f"Generated Answer: {state['draft']}\n"
+        f"Evaluate whether the answer completely and accurately addresses the query."
+    )
+
+    updates: dict = {
+        "needs_revision": evaluation.needs_revision,
+        "max_critic": state["max_critic"] - 1,
+    }
+
+    if evaluation.needs_revision:
+        updates["messages"] = [HumanMessage(content=f"Critic Feedback: {evaluation.feedback}")]
+
+    return updates
+
+
+def conditional_edge(state: AgentState) -> str:
+    if not state["needs_revision"] or state["max_critic"] <= 0:
         return "end"
-    return "generator" if state["is_critic"] else "end"
+    return "generator"
 
 
 builder = StateGraph(AgentState)
+builder.add_node("generator", generator_node)
+builder.add_node("critic", critic_node)
+
+builder.add_edge(START, "generator")
+builder.add_edge("generator", "critic")
+builder.add_conditional_edges(
+    "critic",
+    conditional_edge,
+    {
+        "generator": "generator",
+        "end": END,
+    },
+)
 
 memory_saver = MemorySaver()
-
 app = builder.compile(checkpointer=memory_saver)
 
 
-app.add_node("generator", GenertorNode)
-app.add_node("critic", CriticNode)
-
-app.add_edge(START, "generator")
-app.add_edge("generator", "critic")
-
-app.add_conditional_edges(
-    "critic",
-    condtional_edge,
-    {
-        "generator": "generator",
-        "end": END
-    }
-)
-
-config = {"configurable":{"thread_id":"terminal-session-2"}}
+config = {"configurable": {"thread_id": "terminal-session-2"}}
+user_query = "Summarize relevant details from chunks a and b"
 
 response = app.invoke(
     {
-        "message":[HumanMessage(content="relevance chunks a and b")],
+        "messages": [HumanMessage(content=user_query)],
+        "query": user_query,
+        "draft": "",
+        "needs_revision": False,
+        "max_critic": 2,
     },
-    config = config
+    config=config,
 )
 
-print("RAG Answer:", response["messages"][-1].content)
-
-
-
+print("Final RAG Answer:\n", response["draft"])
