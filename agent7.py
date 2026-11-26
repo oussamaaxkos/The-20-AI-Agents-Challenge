@@ -26,14 +26,19 @@ from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemM
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
-
+from langchain.agents import create_agent
 
 load_dotenv()
+
+llm = ChatGoogleGenerativeAI(
+    model = "gemini-2.5-flash",
+)
 
 
 
 class AgentState(TypedDict):
      messages : Annotated[list[AnyMessage], add_messages]
+     query : str
      is_critic : bool
      max_critic : int
 
@@ -41,11 +46,39 @@ class AgentState(TypedDict):
 class IsCritic(BaseModel):
      is_critic : bool = Field(description = "Is this answer write compared with this query")
 
+class CreateStructuredQuery(BaseModel):
+     query : str = Field(description = "use this query and generate a structured one.")
+
+is_critic_point_llm = llm.with_structured_output(IsCritic)
+structured_query = llm.with_structured_output(CreateStructuredQuery)
+
+
+
 
 @tool
 def information_retrieval(query:str):
     chunks = ["a","b","c"]
     return chunks
+
+
+tools = [information_retrieval]
+
+
+step_executor_agent = create_agent(model=llm, tools=tools)
+
+def GenertorNode(state:AgentState):
+    if state['is_critic'] :
+        state["query"] = structured_query.invoke(f"Here is the context reponse and critics points:{state['messages']} update query based on crtic points")
+    response = step_executor_agent.invoke(state["query"])
+    return {"messages":response}
+
+def CriticNode(state:AgentState):
+    is_critic = is_critic_point_llm.invoke("query : {state['query']}, response : {state['messages'][-1]}")
+    if is_critic :
+        critic_point = llm.invoke(f"here is the query {state['query']} and here is the answer {state['messages']} what is the critic point")
+        
+    
+    
 
 
 
