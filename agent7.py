@@ -73,28 +73,11 @@ def GenertorNode(state:AgentState):
     return {"messages":response}
 
 def CriticNode(state:AgentState):
-    is_critic = is_critic_point_llm.invoke("query : {state['query']}, response : {state['messages'][-1]}")
+    is_critic = is_critic_point_llm.invoke(f"query : {state['query']}, response : {state['messages'][-1]}")
+    critic_point = None
     if is_critic :
         critic_point = llm.invoke(f"here is the query {state['query']} and here is the answer {state['messages']} what is the critic point")
-        
-    
-    
-
-
-
-
-
-
-     
-    
-
-
-
-
-
-
-
-
+    return {"messages":critic_point, "is_critic":is_critic}
 
 
 
