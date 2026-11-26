@@ -87,7 +87,11 @@ def condtional_edge(state:AgentState):
 
 
 builder = StateGraph(AgentState)
-app = builder.compile()
+
+memory_saver = MemorySaver()
+
+app = builder.compile(checkpointer=memory_saver)
+
 
 app.add_node("generator", GenertorNode)
 app.add_node("critic", CriticNode)
@@ -104,7 +108,16 @@ app.add_conditional_edges(
     }
 )
 
+config = {"configurable":{"thread_id":"terminal-session-2"}}
 
+response = app.invoke(
+    {
+        "message":[HumanMessage(content="relevance chunks a and b")],
+    },
+    config = config
+)
+
+print("LLM Answer:", response["messages"][-1].content)
 
 
 
