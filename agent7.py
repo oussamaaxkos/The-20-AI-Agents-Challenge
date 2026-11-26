@@ -77,7 +77,15 @@ def CriticNode(state:AgentState):
     critic_point = None
     if is_critic :
         critic_point = llm.invoke(f"here is the query {state['query']} and here is the answer {state['messages']} what is the critic point")
+        state["max_critic"] -= 1
     return {"messages":critic_point, "is_critic":is_critic}
+
+def condtional_edge(state:AgentState):
+    if state["max_critic"] == -1:
+        return "end"
+    return "critic" if state["is_critic"] else "end"
+
+
 
 
 
