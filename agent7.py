@@ -68,7 +68,7 @@ step_executor_agent = create_agent(model=llm, tools=tools)
 
 def GenertorNode(state:AgentState):
     if state['is_critic'] :
-        state["query"] = structured_query.invoke(f"Here is the context reponse and critics points:{state['messages']} update query based on crtic points")
+        state["query"] = structured_query.invoke(f"Here is the context reponse and critics points:{state['messages']} update query based on crtic point")
     response = step_executor_agent.invoke(state["query"])
     return {"messages":response}
 
@@ -117,7 +117,7 @@ response = app.invoke(
     config = config
 )
 
-print("LLM Answer:", response["messages"][-1].content)
+print("RAG Answer:", response["messages"][-1].content)
 
 
 
